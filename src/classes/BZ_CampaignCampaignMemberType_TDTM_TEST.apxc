@@ -1,48 +1,48 @@
 @isTest
 private class BZ_CampaignCampaignMemberType_TDTM_TEST {
-	static testMethod void run_TEST() {
-		   
-		// Retrieve default NPSP Trigger Handlers
-		List<npsp__Trigger_Handler__c> triggerHandlers = npsp.TDTM_Config_API.getCachedRecords();
+  static testMethod void run_TEST() {
+       
+    // Retrieve default NPSP Trigger Handlers
+    List<npsp__Trigger_Handler__c> triggerHandlers = npsp.TDTM_Config_API.getCachedRecords();
 
-		// Add our Trigger Handler to cached Trigger Handlers
-		npsp__Trigger_Handler__c th = new npsp__Trigger_Handler__c();
-		th.Name = 'CampaignTriggerHandler';
-		th.npsp__Class__c = 'CampaignCampaignMemberType_TDTM';
-		th.npsp__Object__c = 'Campaign';
-		th.npsp__Trigger_Action__c = 'BeforeInsert;BeforeUpdate;';
-		th.npsp__Active__c = true;
-		th.npsp__Load_Order__c = 1;
-		th.npsp__Asynchronous__c = false;
+    // Add our Trigger Handler to cached Trigger Handlers
+    npsp__Trigger_Handler__c th = new npsp__Trigger_Handler__c();
+    th.Name = 'CampaignTriggerHandler';
+    th.npsp__Class__c = 'CampaignCampaignMemberType_TDTM';
+    th.npsp__Object__c = 'Campaign';
+    th.npsp__Trigger_Action__c = 'BeforeInsert;BeforeUpdate;';
+    th.npsp__Active__c = true;
+    th.npsp__Load_Order__c = 1;
+    th.npsp__Asynchronous__c = false;
 
-		triggerHandlers.add(th);
-		
-		
-		test.startTest();
-		 // set up test data by creating test campaign
-		Campaign c= new Campaign(name='Program Participant Update', type='Program Participants', BZ_Region__c='National',Program_Title__c='test', Program_Site__c='test', Application_Type__c='student', Target_Course_ID_In_LMS__c='10', Sourcing_Info_Options__c='test');
-		insert c;
+    triggerHandlers.add(th);
+    
+    
+    test.startTest();
+     // set up test data by creating test campaign
+    Campaign c= new Campaign(name='Program Participant Update', type='Program Participants', BZ_Region__c='National',Program_Title__c='test', Program_Site__c='test', Application_Type__c='student', Target_Course_ID_In_LMS__c='10', Sourcing_Info_Options__c='test');
+    insert c;
         Campaign donorUpdate= new Campaign(name='Donor Campaign Update', type='Donor', BZ_Region__c='National',Program_Title__c='test', Program_Site__c='test', Application_Type__c='student', Target_Course_ID_In_LMS__c='10', Sourcing_Info_Options__c='test');
-		insert donorUpdate;
+    insert donorUpdate;
         //Update existing campaign type
-		c.type='Champion';
-		update c;
+    c.type='Champion';
+    update c;
         donorUpdate.type='Partners';
         update donorUpdate;
         //Insert new Campaign
-		Campaign mentee= new Campaign(name='Program Participant Insert', type='Program Participants', BZ_Region__c='National',Program_Title__c='test', Program_Site__c='test', Application_Type__c='student', Target_Course_ID_In_LMS__c='10', Sourcing_Info_Options__c='test');
-	    insert mentee;
-		Campaign donor= new Campaign(name='Donor Campaign', type='Donor', BZ_Region__c='National',Program_Title__c='test', Program_Site__c='test', Application_Type__c='student', Target_Course_ID_In_LMS__c='10', Sourcing_Info_Options__c='test');
-		insert donor;
+    Campaign mentee= new Campaign(name='Program Participant Insert', type='Program Participants', BZ_Region__c='National',Program_Title__c='test', Program_Site__c='test', Application_Type__c='student', Target_Course_ID_In_LMS__c='10', Sourcing_Info_Options__c='test');
+      insert mentee;
+    Campaign donor= new Campaign(name='Donor Campaign', type='Donor', BZ_Region__c='National',Program_Title__c='test', Program_Site__c='test', Application_Type__c='student', Target_Course_ID_In_LMS__c='10', Sourcing_Info_Options__c='test');
+    insert donor;
         Campaign volunteer= new Campaign(name='Volunteer Campaign', type='Volunteer', Volunteer_Opportunities__c='test',BZ_Region__c='National',Program_Title__c='test', Program_Site__c='test', Application_Type__c='student', Target_Course_ID_In_LMS__c='10', Sourcing_Info_Options__c='test');
-		insert volunteer;
+    insert volunteer;
         Campaign partner= new Campaign(name='Partner Campaign', type='Partners', BZ_Region__c='National',Program_Title__c='test', Program_Site__c='test', Application_Type__c='student', Target_Course_ID_In_LMS__c='10', Sourcing_Info_Options__c='test');
-		insert partner;
+    insert partner;
         Campaign mentor= new Campaign(name='Mentor Campaign', type='Leadership Coaches', Section_Name_Site_Prefix__c='test',Section_Name_in_LMS_Coach_Course__c='test',Coach_Course_id__c='10', BZ_Region__c='National',Program_Title__c='test', Program_Site__c='test', Application_Type__c='student', Target_Course_ID_In_LMS__c='10', Sourcing_Info_Options__c='test');
-		insert mentor;
-		test.stopTest();
-		//assert that campaignmemberrecordtypeid updated
-		Campaign menteeInsert=[Select id, name, type, campaignmemberrecordtype.name from Campaign where name='Program Participant Insert' limit 1];
+    insert mentor;
+    test.stopTest();
+    //assert that campaignmemberrecordtypeid updated
+    Campaign menteeInsert=[Select id, name, type, campaignmemberrecordtype.name from Campaign where name='Program Participant Insert' limit 1];
         System.assertEquals(menteeInsert.CampaignMemberRecordType.Name, 'Mentee');
         Campaign donorInsert=[Select id, name, type, campaignmemberrecordtype.name from Campaign where name='Donor Campaign' limit 1];
         System.assertEquals(donorInsert.CampaignMemberRecordType.Name, 'Donor');
@@ -57,5 +57,5 @@ private class BZ_CampaignCampaignMemberType_TDTM_TEST {
         System.assertEquals(masterUpdate.CampaignMemberRecordType.Name, 'Master');
         Campaign partnerUpdate=[Select id, name, type, campaignmemberrecordtype.name from Campaign where name='Donor Campaign Update' limit 1];
         System.assertEquals(partnerUpdate.CampaignMemberRecordType.Name, 'Partner');
-	}
+  }
 }
