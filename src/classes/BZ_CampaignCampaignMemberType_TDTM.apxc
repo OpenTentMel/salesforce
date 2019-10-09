@@ -1,0 +1,67 @@
+global without sharing class BZ_CampaignCampaignMemberType_TDTM extends npsp.TDTM_Runnable{
+	
+ // the main entry point for TDTM to invoke our trigger handlers.
+  global override npsp.TDTM_Runnable.DmlWrapper run(List<SObject> newlist, List<SObject> oldlist, npsp.TDTM_Runnable.Action triggerAction, Schema.DescribeSObjectResult objResult) {
+  
+  npsp.TDTM_Runnable.DmlWrapper dmlWrapper = null;
+	    dmlWrapper = new npsp.TDTM_Runnable.DmlWrapper();
+        List<Campaign> newCampaignList = (List<Campaign>)newlist; 
+      	List<Campaign> oldCampaignList= (List<Campaign>)oldList;
+      System.debug('Inside DML Wrapper run');
+      List<RecordType> rts=[Select id, name from RecordType where SobjectType='CampaignMember' AND isActive=true];
+      Map<String,Id> rtNameToIdMap= new Map<String,Id>();
+      for(RecordType rt: rts) rtNameToIdMap.put(rt.name, rt.Id);
+      System.debug('rtnametoidmap: ' + rtNameToIdMap);
+      if (triggerAction == npsp.TDTM_Runnable.Action.BeforeInsert) {
+          
+          System.debug('before insert trigger action');
+            for(Campaign c: newCampaignList){
+                System.debug('before insert campagin type: ' + c.Type);
+                switch on c.Type{
+                    when 'Mentor', 'Leadership Coaches'{
+                        c.CampaignMemberRecordTypeId=rtNameToIdMap.get('Mentor');
+                    }when 'Mentee','Program Participants', 'Pre-Accelerator Participants'{
+                        System.debug('renaming mentee campaign members' + rtNameToIdMap.get('Mentee'));
+                        c.CampaignMemberRecordTypeId=rtNameToIdMap.get('Mentee');
+                    }when 'Donor', 'Appeal', 'Email'{
+                        c.CampaignMemberRecordTypeId=rtNameToIdMap.get('Donor');
+                    }when 'Volunteer'{
+                        c.CampaignMemberRecordTypeId=rtNameToIdMap.get('Volunteer');
+                    }when 'Partners'{
+                        c.CampaignMemberRecordTypeId=rtNameToIdMap.get('Partner');
+                    }when else{
+                        System.debug('Master record type stays the same');
+                        c.CampaignMemberRecordTypeId=rtNameToIdMap.get('Master');
+                    }
+                }
+            }     
+      }else if(triggerAction == npsp.TDTM_Runnable.Action.BeforeUpdate){
+          System.debug('Inside trigger before update');
+          for (Integer x = 0; x < newCampaignList.size(); x++) {
+            if (newCampaignList[x].Type <> oldCampaignList[x].Type) {
+                System.debug('the old type does not equal the new type: '  + newCampaignList[x].Type);
+                switch on newCampaignList[x].Type{
+                    
+                    when 'Mentor', 'Leadership Coaches'{
+                        newCampaignList[x].CampaignMemberRecordTypeId=rtNameToIdMap.get('Mentor');
+                    }when 'Mentee', 'Program Participants', 'Pre-Accelerator Participants'{
+                        newCampaignList[x].CampaignMemberRecordTypeId=rtNameToIdMap.get('Mentee');
+                    }when 'Donor', 'Appeal', 'Email'{
+                        newCampaignList[x].CampaignMemberRecordTypeId=rtNameToIdMap.get('Donor');
+                    }when 'Volunteer'{
+                        newCampaignList[x].CampaignMemberRecordTypeId=rtNameToIdMap.get('Volunteer');
+                    }when 'Partners'{
+                        newCampaignList[x].CampaignMemberRecordTypeId=rtNameToIdMap.get('Partner');
+                    }when else{
+                        System.debug('updating to master record type');
+                        newCampaignList[x].CampaignMemberRecordTypeId=rtNameToIdMap.get('Master');
+                    }
+                }
+                
+            }
+          }
+      }
+      System.debug('returning');
+      return dmlWrapper;
+	}
+}
