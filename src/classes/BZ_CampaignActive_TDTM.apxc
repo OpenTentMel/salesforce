@@ -1,0 +1,138 @@
+/* We run this trigger inside of a TDTM wrapper so that we can control its load order and its active state from the NPSP Trigger Handler UI
+When we deactivate a Campaign with lots of Campaign Members, it can time out due to our BZ_Notifications class class to LMS. This class helps us deactivate the trigger when we need to manually update a Campaign. This is not a long-term solution */
+
+global without sharing class BZ_CampaignActive_TDTM extends npsp.TDTM_Runnable{
+  
+ // the main entry point for TDTM to invoke our trigger handlers.
+  global override npsp.TDTM_Runnable.DmlWrapper run(List<SObject> newlist, List<SObject> oldlist, npsp.TDTM_Runnable.Action triggerAction, Schema.DescribeSObjectResult objResult) {
+  
+        npsp.TDTM_Runnable.DmlWrapper dmlWrapper = null;
+      dmlWrapper = new npsp.TDTM_Runnable.DmlWrapper();
+        List<Campaign> newCampaignList = (List<Campaign>)newlist; 
+        List<Campaign> oldCampaignList= (List<Campaign>)oldList;
+      
+      
+     
+       //before Update
+      if(triggerAction == npsp.TDTM_Runnable.Action.BeforeUpdate){
+          
+
+		    System.Debug('BZ_CampaignActive_TDTM: begin trigger');
+		    List<CampaignMember> campaignMembersToCreateTasksFor = new List<CampaignMember>();
+		    Set<Id> contactIdsToMaybeSetInactive = new Set<Id>();
+		    Set<Id> contactIdsToSetActive = new Set<Id>();
+		    Set<Id> campaignIdsBecomingInactive = new Set<Id>();
+		    for (Integer x = 0; x < newCampaignList.size(); x++)
+		    { 
+		        // Only run this if the Active field changes and it's a recruitment campaign
+		        // with an application associated.
+		        if (oldCampaignList[x].IsActive != newCampaignList[x].IsActive &&
+		               (
+		               newCampaignList[x].Type == 'Leadership Coaches' ||
+		               newCampaignList[x].Type == 'Program Participants' ||
+		               newCampaignList[x].Type == 'Pre-Accelerator Participants' ||
+		               newCampaignList[x].Type == 'Volunteer'
+		               )
+		            // TODO: what about Mentor and Mentee now that we have them signup through the
+		            // Join server. Do we need to enable Apply Now or queue up emails?
+		           )
+		        {
+		            System.Debug('BZ_CampaignActive: TDTM trigger processing campaign: ' + newCampaignList[x]);
+		            List<CampaignMember> cms = [SELECT Id, ContactId, CampaignId 
+		                                        FROM CampaignMember WHERE CampaignId=:newCampaignList[x].Id];
+		            List<Task> tasksToAdd = new List<Task>();
+		            for(CampaignMember cm : cms)
+		            {
+		                System.debug('BZ_CampaignActive:TDTM processing CampaignMember: '+ cm);
+		                cm.Apply_Button_Enabled__c = newCampaignList[x].IsActive; 
+		                
+		                if (newCampaignList[x].IsActive)
+		                {
+		                    // If the campaign is becoming active, queue up tasks to send emails to 
+		                    // existing member letting them know the app is open.
+		                    if (!BZ_CloseRecruitmentController.IsCloseRecruitmentRunning){
+		                        campaignMembersToCreateTasksFor.add(cm);
+		                    }
+		                    
+		                    contactIdsToSetActive.add(cm.ContactId);                    
+		                }
+		                else
+		                {
+		                    campaignIdsBecomingInactive.add(newCampaignList[x].Id);
+		                    contactIdsToMaybeSetInactive.add(cm.ContactId);
+		                }
+		            }
+		            update cms;
+		            
+		            //System.Debug('BZ_CampaignActive: updated '+cms.size()+' CampaignMember.Apply_Button_Enabled__c field(s)');
+		        }
+		    }//end for loop
+		    
+		    if (contactIdsToSetActive.size() > 0){
+		        List<Contact> contacts = [SELECT Id, Is_In_Active_Recruitment_Campaign__c FROM Contact WHERE Id in :contactIdsToSetActive];
+		        for (Contact c : contacts){
+		            System.Debug('BZ_CampaignActive: updating '+c+' and setting Is_In_Active_Recruitment_Campaign__c = true');
+		            c.Is_In_Active_Recruitment_Campaign__c = true;
+		        }
+		        update contacts;
+		    }
+		    
+		    if (contactIdsToMaybeSetInactive.size() > 0){
+		        List<CampaignMember> allCampaignMembersForInactiveContacts = [SELECT Id, ContactId, CampaignId FROM CampaignMember WHERE ContactId in :contactIdsToMaybeSetInactive];
+		        Set<Id> otherCampaignIds = new Set<Id>();
+		        Map<Id, List<Id>> contactToCampaignsMap = new Map<Id, List<Id>>();
+		        for (CampaignMember cm : allCampaignMembersForInactiveContacts){
+		            if (!campaignIdsBecomingInactive.contains(cm.CampaignId)){ // For campaigns becoming Inactive, they are currently Active since it's a before update.  Ignore them when looking for Active campaigns.
+		                otherCampaignIds.add(cm.CampaignId);
+		                if (contactToCampaignsMap.containsKey(cm.ContactId)){
+		                    contactToCampaignsMap.get(cm.ContactId).add(cm.CampaignId);
+		                } else {
+		                    contactToCampaignsMap.put(cm.ContactId, new List<Id>{cm.CampaignId});
+		                }
+		            }
+		        }
+		        Map<Id, Campaign> campaignMap = new Map<Id, Campaign>([SELECT Id, IsActive, Type FROM Campaign WHERE Id in :otherCampaignIds]);
+		        List<Contact> contacts = [SELECT Id, Is_In_Active_Recruitment_Campaign__c FROM Contact WHERE Id in :contactIdsToMaybeSetInactive];
+		        List<Contact> contactsTpUpdate = new List<Contact>();
+		        for (Contact c : contacts){
+		            boolean inAnActiveRecruitmentCampaign = false;
+		            if (contactToCampaignsMap.containsKey(c.Id)){
+		                for(Id i : contactToCampaignsMap.get(c.Id)){
+		                    Campaign campaign = campaignMap.get(i);
+		                    if (campaign.IsActive && 
+		                           (
+		                           campaign.Type == 'Leadership Coaches' ||
+		                           campaign.Type == 'Program Participants' ||
+		                           campaign.Type == 'Pre-Accelerator Participants' ||
+		                           campaign.Type == 'Volunteer'
+		                           )
+		                       )
+		                    {
+		                        System.Debug('BZ_CampaignActive: SKIPPING '+c+' because they are in an Active recruitment campaign: ' + campaign);
+		                        inAnActiveRecruitmentCampaign = true;
+		                    }
+		                }
+		            }
+		            
+		            if (inAnActiveRecruitmentCampaign == false){
+		                System.Debug('BZ_CampaignActive: updating '+c+' and setting Is_In_Active_Recruitment_Campaign__c = false');
+		                c.Is_In_Active_Recruitment_Campaign__c = false;
+		                contactsTpUpdate.add(c);
+		            }
+		        }
+		        update contactsTpUpdate;
+		    }
+		    
+		    if (campaignMembersToCreateTasksFor.size() > 0)
+		    {
+		        insert BZ_TaskFactory.createEmailTasks(campaignMembersToCreateTasksFor, 
+		                                               'Send App Open Email', 
+		                                               'App_Open_Email_Template__c');
+		    }
+
+
+      
+  }
+  return dmlWrapper;
+}
+}
